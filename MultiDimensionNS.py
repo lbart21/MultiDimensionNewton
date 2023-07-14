@@ -3,7 +3,8 @@ from sympy import lambdify
 import sympy as sp
 
 class NewtonSolver():
-    def __init__(self, initialGuess, f, JacobianMethod, residualSmoothing, variables, **kwargs) -> None:
+    def __init__(self, initial_guess, f, jacobian_method, residual_smoothing, \
+                    variables, verbose, **kwargs) -> None:
         """
         initialGuess = [x1, x2, x3, ..., xN]
         f = [func1, func2, func3, ..., funcN]
@@ -11,75 +12,63 @@ class NewtonSolver():
         """
         tol = 5e-8
         
-        nVars = len(initialGuess)
-        guess = np.array(initialGuess)
-        guess = guess.reshape((1, nVars))
+        n_vars = len(initial_guess)
+        guess = np.array(initial_guess)
+        guess = guess.reshape((1, n_vars))
 
         ### Find out how far away from root we are
-        f_vec = np.zeros((1, nVars)) #Row vector
-        #print("initial f_vec", f_vec)
-        
-        
+        f_vec = np.zeros((1, n_vars)) #Row vector
+
         ### "'symbolise' all functions once instead of every step"
-        for i in range(nVars):
+        for i in range(n_vars):
             f[i] = f[i](*variables, kwargs)
-        for i in range(nVars):
+        for i in range(n_vars):
             f_callable = lambdify(variables, f[i])
             f_vec[0][i] = f_callable(*guess[0])
-        
-        #print("filled f_vec", f_vec)
+
         f_len = np.linalg.norm(f_vec)
-        print("Error: ", f_len)
-        #print("guess after reshape", guess)
+        if verbose:
+            print("Error: ", f_len)
+
         loop = 1
-        #print("entering while loop")
         alpha = 1.0
         while f_len > tol:
-            print(loop)
-            if nVars == 1: #1D problem so don't need Jacobian
+            if verbose:
+                print(loop)
+            if n_vars == 1: #1D problem so don't need Jacobian
                 df_dx = lambdify(variables, f[0].diff(variables[0]))
                 df_dx_val = df_dx(*guess[0])
                 guess -= np.divide(f_vec, df_dx_val)
-                pass
+
             else: #Multi-dimension problem, so need Jacobian matrix
-                Jac = self.FormJacobian(f = f, JacobianMethod = JacobianMethod, kwargs = kwargs, variables = variables, guess = guess)
-                #print("Jacobian", Jac)
-                J_inv = np.linalg.inv(Jac)
-                #print(np.shape(J_inv), np.shape(np.transpose(f_vec)))
-                #print(np.shape(np.transpose(f_vec)))
-                #print("guess shape", np.shape(guess))
-                #print("J_inv shape", np.shape(J_inv))
-                #print("transpose f_vec shape", np.shape(np.transpose(f_vec)))
-                #print("J_inv * f_vec^T shape", np.shape(np.matmul(J_inv, np.transpose(f_vec))))
-                #print("update shape", np.shape(np.transpose(np.multiply(J_inv, np.transpose(f_vec)))))
-                if residualSmoothing[0]:
-                    alpha = residualSmoothing[1]
-                guess -= alpha * np.transpose(np.matmul(J_inv, np.transpose(f_vec)))
-                #print("new guess", guess)
-                
-            for i in range(nVars):
+                jac = self.form_jacobian(f = f, jacobian_method = jacobian_method, \
+                                            kwargs = kwargs, variables = variables, guess = guess)
+                jac_inv = np.linalg.inv(jac)
+                if residual_smoothing[0]:
+                    alpha = residual_smoothing[1]
+                guess -= alpha * np.transpose(np.matmul(jac_inv, np.transpose(f_vec)))
+
+            for i in range(n_vars):
                 f_callable = lambdify(variables, f[i])
                 f_vec[0][i] = f_callable(*guess[0])
             f_len = np.linalg.norm(f_vec)
-            print("Error: ", f_len)
-            #print("new f_vec", f_vec)
+            if verbose:
+                print("Error: ", f_len)
             loop += 1
         self.final_result = guess[0].tolist()
         
-        
-
-    def FormJacobian(self, f, JacobianMethod, variables, kwargs, guess):
+    def form_jacobian(self, f, jacobian_method, variables, kwargs, guess):
         epsilon = 1e-9
-        nVars = len(variables)
-        Jac = np.zeros((nVars, nVars))
-        for i in range(nVars): #counter to switch between functions
-            for j in range(nVars): #counter to switch between variables
-                if JacobianMethod == "Analytical":
+        n_vars = len(variables)
+        jac = np.zeros((n_vars, n_vars))
+        for i in range(n_vars): #counter to switch between functions
+            for j in range(n_vars): #counter to switch between variables
+                if jacobian_method == "Analytical":
                     df_dxi = lambdify(variables, f[i].diff(variables[j]))
                     df_dxi_val = df_dxi(*guess[0])
                     
-                elif JacobianMethod == "FD":
+                elif jacobian_method == "FD":
                     pass
-                Jac[i][j] = df_dxi_val
+                jac[i][j] = df_dxi_val
 
-        return Jac
+        return jac
