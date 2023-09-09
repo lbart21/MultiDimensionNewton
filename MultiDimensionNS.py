@@ -1,16 +1,35 @@
 import numpy as np
 from sympy import lambdify
 import sympy as sp
+from copy import deepcopy
 
 class NewtonSolver():
     def __init__(self, initial_guess, f, jacobian_method, residual_smoothing, \
                     variables, verbose, **kwargs) -> None:
         """
-        initialGuess = [x1, x2, x3, ..., xN]
-        f = [func1, func2, func3, ..., funcN]
-        JacobianMethod = "Analytical" or "FD"
+
+        Parameters
+        ----------
+        initial_guess : list(float)
+            initial guess of the desired variables, in the order of the variables given in the "variables" argument
+        f : list(function(s))
+            list of function names that are to be solved.
+        jacobian_method : string("Analytical" or "FD")
+            String for case switching between analytical and finite difference evaluation of the jacobian.
+        residual_smoothing : list(boolean, float)
+            Toggle step size with the first element, then supply a float as the second element if toggle is true.
+        variables: list(sympy character(s))
+            list of sympy symbolic characters that are to be solved for
+        verbose : boolean
+            Toggle current error value being printed after each iteration.
+        kwargs : floats
+            Additional parameters that are used when evaluating function calls of the functions within f.
+        
+        Outputs
+        ---------
+        Converged result is stored in object property "final_result", which is a list.
         """
-        tol = 5e-8
+        tol = 1e-8
         
         n_vars = len(initial_guess)
         guess = np.array(initial_guess)
@@ -68,7 +87,11 @@ class NewtonSolver():
                     df_dxi_val = df_dxi(*guess[0])
                     
                 elif jacobian_method == "FD":
-                    pass
+                    guess_plus_epsilon = deepcopy(guess)
+                    guess_plus_epsilon[0][j] += epsilon
+                    #print(guess, guess_plus_epsilon)
+                    f_callable = lambdify(variables, f[i])
+                    df_dxi_val = (f_callable(*guess_plus_epsilon[0]) - f_callable(*guess[0])) / epsilon
                 jac[i][j] = df_dxi_val
 
         return jac
